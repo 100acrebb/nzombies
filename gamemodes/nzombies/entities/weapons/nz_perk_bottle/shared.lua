@@ -14,9 +14,11 @@ SWEP.UseHands 			= true
 SWEP.Primary.ClipSize		= -1
 SWEP.Primary.DefaultClip	= -1
 SWEP.Primary.Delay = 1
+SWEP.Primary.Ammo = -1
 SWEP.ViewModelFOV = 75
 SWEP.Secondary.ClipSize		= -1
 SWEP.Secondary.DefaultClip	= -1
+SWEP.Secondary.Ammo			= -1
 
 SWEP.Weight				= 5
 SWEP.AutoSwitchTo		= true
@@ -64,6 +66,7 @@ function SWEP:Initialize()
 	if CLIENT then
 		if self.Owner == LocalPlayer() then
 			local vm = LocalPlayer():GetViewModel()
+			print(self:GetPerk())
 			local mat = nzPerks:Get(self:GetPerk()).material --perk_materials[self:GetPerk()]
 			oldmat = vm:GetMaterial() or ""
 			vm:SetMaterial(mat)
@@ -142,8 +145,9 @@ end
 function SWEP:OnRemove()
 
 	if CLIENT then
-		if self.Owner == LocalPlayer() then
-			local vm = LocalPlayer():GetViewModel()
+		local ply = LocalPlayer()
+		if IsValid(ply) and self.Owner == ply then
+			local vm = ply:GetViewModel()
 			vm:SetMaterial(oldmat)
 		end
 	end
@@ -154,11 +158,12 @@ end
 
 function SWEP:GetViewModelPosition( pos, ang )
  
- 	local newpos = LocalPlayer():EyePos()
-	local newang = LocalPlayer():EyeAngles()
+	local ply = LocalPlayer()
+ 	local newpos = ply:EyePos()
+	local newang = ply:EyeAngles()
 	local up = newang:Up()
 	
-	newpos = newpos + LocalPlayer():GetAimVector()*3 - up*65
+	newpos = newpos + ply:GetAimVector()*3 - up*65
 	
 	return newpos, newang
  

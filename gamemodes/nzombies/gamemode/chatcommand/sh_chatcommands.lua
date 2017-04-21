@@ -253,3 +253,18 @@ nzChatCommand.Add("/navflush", SERVER, function(ply, text)
 	nzNav.FlushAllNavModifications()
 	PrintMessage(HUD_PRINTTALK, "[nZ] Navlocks successfully flushed. Remember to redo them for best playing experience.")
 end)
+
+nzChatCommand.Add("/tools", SERVER, function(ply, text)
+	if ply:IsInCreative() then
+		ply:Give("weapon_physgun")
+		ply:Give("nz_multi_tool")
+	end
+end, true, "Give creative mode tools to yourself if in Creative.")
+
+nzChatCommand.Add("/maxammo", SERVER, function(ply, text)
+	nzNotifications:PlaySound("nz/powerups/max_ammo.mp3", 2)
+	-- Give everyone ammo
+	for k,v in pairs(player.GetAll()) do
+		v:GiveMaxAmmo()
+	end
+end, false, "Gives all players max ammo.")

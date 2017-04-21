@@ -1,6 +1,6 @@
 -- Functions
 function nzWeps:CalculateMaxAmmo(class, pap)
-	local wep = weapons.Get(class)
+	local wep = isentity(class) and class:IsWeapon() and class or weapons.Get(class)
 	local clip = wep.Primary.ClipSize
 	
 	if pap then
@@ -52,11 +52,11 @@ function plymeta:GiveMaxAmmo(papoverwrite)
 		if !v:IsSpecial() then
 			v:GiveMaxAmmo()
 		else
-			local wepdata = nzSpecialWeapons.Weapons[v:GetClass()] or v.NZSpecialWeaponData
+			local wepdata = v.NZSpecialWeaponData
 			if !wepdata then return end
 			
-			local ammo = usesammo[v:GetSpecialCategory()] or wepdata.ammotype
-			local maxammo = wepdata.maxammo
+			local ammo = usesammo[v:GetSpecialCategory()] or wepdata.AmmoType
+			local maxammo = wepdata.MaxAmmo
 			
 			if ammo and maxammo then
 				self:SetAmmo(maxammo, GetNZAmmoID(ammo) or ammo) -- Special weapon ammo or just that ammo

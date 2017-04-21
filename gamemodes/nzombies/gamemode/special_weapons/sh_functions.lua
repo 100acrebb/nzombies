@@ -1,9 +1,49 @@
+nzSpecialWeapons.Modifiers = nzSpecialWeapons.Modifiers or {}
 
-function nzSpecialWeapons:AddKnife( class, drawonequip, attackholstertime, drawholstertime )
-	local wep = weapons.Get(class)
-	if wep then
-		self.Weapons[class] = {id = "knife", drawonequip = drawonequip}
+function nzSpecialWeapons:RegisterModifier(id, func, defaultdata)
+	nzSpecialWeapons.Modifiers[id] = {func, defaultdata}
+end
+
+function nzSpecialWeapons:ModifyWeapon(wep, id, data)
+	local tbl = nzSpecialWeapons.Modifiers[id]
+	if !tbl then return end
+	
+	local pass = {}
+	local default = tbl[2]
+	
+	if !data then pass = default else
+		for k,v in pairs(default) do
+			if data[k] != nil then -- ONLY if nil (not passed)
+				pass[k] = data[k]
+			else
+				pass[k] = v
+			end
+		end
+	end
+	
+	local bool = tbl[1](wep, pass) -- Run the function with the data, return whether it worked or not
+	if bool then
+		wep.NZSpecialWeaponData = pass
+		wep.NZSpecialCategory = id -- Mark as special from now on
 		
+		if isentity(wep) then -- Reregister it on the player if it is currently being carried
+			wep:SetNWInt( "SwitchSlot", nil ) -- Reset weapon slot
+			local ply = wep:GetOwner()
+			if IsValid(ply) then
+				hook.Run("WeaponEquip", wep) -- Rerun weapon equip logic (resets slots etc)
+				ply:EquipPreviousWeapon() -- Equip previous weapon
+			end
+		end
+	end
+	
+	return bool
+end
+
+nzSpecialWeapons:RegisterModifier("knife", function(wep, data)
+	if wep then
+		local attackholstertime = data.AttackHolsterTime
+		local drawholstertime = data.DrawHolsterTime
+	
 		local oldattack = wep.PrimaryAttack
 		function wep:PrimaryAttack()
 			if self.nzCanAttack then
@@ -21,6 +61,12 @@ function nzSpecialWeapons:AddKnife( class, drawonequip, attackholstertime, drawh
 				self.nzCanAttack = true
 				self.nzHolsterTime = ct + attackholstertime
 				self:SendWeaponAnim(ACT_VM_IDLE)
+				self:SetNextPrimaryFire(0)
+				
+				if self.SetStatus then
+					self:SetStatus(TFA.Enum.STATUS_IDLE)
+				end
+				
 				self:PrimaryAttack()
 			else
 				self.nzHolsterTime = ct + drawholstertime
@@ -37,7 +83,7 @@ function nzSpecialWeapons:AddKnife( class, drawonequip, attackholstertime, drawh
 				self.nzAttackTime = nil
 			end]]
 			
-			if self.nzHolsterTime and ct > self.nzHolsterTime then
+			if self.nzHolsterTime and ct > self.nzHolsterTime and !self.Owner.nzSpecialButtonDown then
 				self:Holster()
 				self.Owner:SetUsingSpecialWeapon(false)
 				self.Owner:EquipPreviousWeapon()
@@ -52,16 +98,21 @@ function nzSpecialWeapons:AddKnife( class, drawonequip, attackholstertime, drawh
 			if SERVER then self.Owner:SetUsingSpecialWeapon(false) end
 			return oldholster(self, wep2)
 		end
-		
-		weapons.Register(wep, class)
+		return true
 	end
-end
+end, { -- Every field that isn't supplied from the data arg is taken from here instead
+	AttackHolsterTime = 0.65,
+	DrawHolsterTime = 1.5,
+	DrawOnEquip = true,
+})
 
-function nzSpecialWeapons:AddGrenade( class, ammo, drawact, throwtime, throwfunc, holstertime )
-	local wep = weapons.Get(class)
+nzSpecialWeapons:RegisterModifier("grenade", function(wep, data)
 	if wep then
-		self.Weapons[class] = {id = "grenade", maxammo = ammo}
-		
+		local drawact = data.DrawAct
+		local throwtime = data.ThrowTime
+		local throwfunc = data.ThrowFunction
+		local holstertime = data.HolsterTime
+	
 		wep.EquipDraw = wep.Deploy
 		
 		function wep:Deploy()
@@ -107,16 +158,24 @@ function nzSpecialWeapons:AddGrenade( class, ammo, drawact, throwtime, throwfunc
 		end
 		
 		function wep:PrimaryAttack() end
-		
-		weapons.Register(wep, class)
+		return true
 	end
-end
+end, {
+	MaxAmmo = 4,
+	AmmoType = "nz_grenade",
+	DrawAct = false, -- False/nil makes default
+	ThrowTime = 0.85,
+	ThrowFunction = false, -- False/nil uses default PrimaryAttack function
+	HolsterTime = 0.4,
+})
 
-function nzSpecialWeapons:AddSpecialGrenade( class, ammo, drawact, throwtime, throwfunc, holstertime )
-	local wep = weapons.Get(class)
+nzSpecialWeapons:RegisterModifier("specialgrenade", function(wep, data)
 	if wep then
-		self.Weapons[class] = {id = "specialgrenade", maxammo = ammo}
-		
+		local drawact = data.DrawAct
+		local throwtime = data.ThrowTime
+		local throwfunc = data.ThrowFunction
+		local holstertime = data.HolsterTime
+	
 		wep.EquipDraw = wep.Deploy
 		
 		function wep:Deploy()
@@ -128,7 +187,6 @@ function nzSpecialWeapons:AddSpecialGrenade( class, ammo, drawact, throwtime, th
 				self:SendWeaponAnim(drawact) -- Otherwise play the act (preferably pull pin act)
 			end
 			self.nzThrowTime = ct + throwtime
-			
 		end
 	
 		local oldthink = wep.Think
@@ -160,15 +218,23 @@ function nzSpecialWeapons:AddSpecialGrenade( class, ammo, drawact, throwtime, th
 			oldthink(self)
 		end
 		
-		weapons.Register(wep, class)
+		function wep:PrimaryAttack() end
+		return true
 	end
-end
+end, {
+	MaxAmmo = 3,
+	AmmoType = "nz_specialgrenade",
+	DrawAct = false, -- False/nil makes default
+	ThrowTime = 1.2,
+	ThrowFunction = false, -- False/nil uses default PrimaryAttack function
+	HolsterTime = 0.4,
+})
 
-function nzSpecialWeapons:AddDisplay( class, drawfunc, returnfunc )
-	local wep = weapons.Get(class)
+nzSpecialWeapons:RegisterModifier("display", function(wep, data)
 	if wep then
-		self.Weapons[class] = {id = "display"}
-		
+		local drawfunc = data.DrawFunction
+		local returnfunc = data.ToHolsterFunction
+	
 		wep.EquipDraw = wep.Deploy
 		
 		if drawfunc then
@@ -201,8 +267,49 @@ function nzSpecialWeapons:AddDisplay( class, drawfunc, returnfunc )
 			
 			oldthink(self)
 		end
-		
-		weapons.Register(wep, class)
+		return true
+	end
+end, {
+	DrawFunction = false,
+	ToHolsterFunction = function(wep)
+		return SERVER and CurTime() > wep.nzDeployTime + 2.5 -- Default delay 2.5 seconds
+	end,
+})
+
+-- Hardcodes the weapon by re-registering the weapon table after it's passed through normal modifications
+function nzSpecialWeapons:AddKnife( class, drawonequip, attackholstertime, drawholstertime )
+	local wep = weapons.Get(class)
+	if wep then
+		if nzSpecialWeapons:ModifyWeapon(wep, "knife", {AttackHolsterTime = attackholstertime, DrawHolsterTime = drawholstertime, DrawOnEquip = drawonequip}) then
+			weapons.Register(wep, class)
+		end
+	end
+end
+
+function nzSpecialWeapons:AddGrenade( class, ammo, drawact, throwtime, throwfunc, holstertime )
+	local wep = weapons.Get(class)
+	if wep then
+		if nzSpecialWeapons:ModifyWeapon(wep, "grenade", {MaxAmmo = ammo, DrawAct = drawact, ThrowTime = throwtime, ThrowFunction = throwfunc, HolsterTime = holstertime}) then
+			weapons.Register(wep, class)
+		end
+	end
+end
+
+function nzSpecialWeapons:AddSpecialGrenade( class, ammo, drawact, throwtime, throwfunc, holstertime )
+	local wep = weapons.Get(class)
+	if wep then
+		if nzSpecialWeapons:ModifyWeapon(wep, "specialgrenade", {MaxAmmo = ammo, DrawAct = drawact, ThrowTime = throwtime, ThrowFunction = throwfunc, HolsterTime = holstertime}) then
+			weapons.Register(wep, class)
+		end
+	end
+end
+
+function nzSpecialWeapons:AddDisplay( class, drawfunc, returnfunc )
+	local wep = weapons.Get(class)
+	if wep then
+		if nzSpecialWeapons:ModifyWeapon(wep, "display", {DrawFunction = drawfunc, ToHolsterFunction = returnfunc}) then
+			weapons.Register(wep, class)
+		end
 	end
 end
 
@@ -281,11 +388,11 @@ local wep = FindMetaTable("Weapon")
 local ply = FindMetaTable("Player")
 
 function wep:IsSpecial()
-	return (self.NZSpecialCategory or nzSpecialWeapons.Weapons[self:GetClass()]) and true or false
+	return self.NZSpecialCategory and true or false
 end
 
 function wep:GetSpecialCategory()
-	return self.NZSpecialCategory or nzSpecialWeapons.Weapons[self:GetClass()].id
+	return self.NZSpecialCategory
 end
 
 function ply:GetSpecialWeaponFromCategory( id )
@@ -322,7 +429,7 @@ if SERVER then
 		self.NZSpecialWeapons[id] = wep
 		nzSpecialWeapons:SendSpecialWeaponAdded(self, wep, id)
 		
-		local data = nzSpecialWeapons.Weapons[wep:GetClass()]
+		local data = wep.NZSpecialWeaponData
 		
 		if !data then return end -- No nothing more if it doesn't have data supplied (e.g. specially added thingies)
 		
@@ -336,7 +443,7 @@ if SERVER then
 			self:SetUsingSpecialWeapon(true)
 			self:SetActiveWeapon(nil)
 			self:SelectWeapon(wep:GetClass())
-		elseif data.drawonequip then
+		elseif data.DrawOnEquip then
 			wep.nzIsDrawing = true
 			self:SetUsingSpecialWeapon(true)
 			self:SetActiveWeapon(nil)
@@ -353,12 +460,12 @@ if SERVER then
 				local ply = wep:GetOwner()
 				if IsValid(ply) then
 					local oldwep = ply:GetSpecialWeaponFromCategory( wep:GetSpecialCategory() )
-					print(wep, oldwep)
+					--print(wep, oldwep)
 					if IsValid(oldwep) then
 						ply:StripWeapon(oldwep:GetClass())
 					end
 					ply:AddSpecialWeapon(wep)
-				end		
+				end
 			end)
 		end
 	end)
@@ -366,6 +473,7 @@ end
 
 -- Players switching to special weapons can then no longer switch away until its action has been completed
 function GM:PlayerSwitchWeapon(ply, oldwep, newwep)
+	print(ply, oldwep, newwep)
 	if IsValid(oldwep) and IsValid(newwep) then
 	
 		if !oldwep:IsSpecial() then

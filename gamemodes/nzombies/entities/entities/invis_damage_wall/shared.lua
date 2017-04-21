@@ -88,7 +88,7 @@ function ENT:Think()
 						if self:GetTesla() then
 							if !v.LightningAura or v.LightningAura < ct then
 								e:SetEntity(v)
-								util.Effect("lightning_aura", e)
+								util.Effect("lightning_aura", e, false, true)
 							end
 							if islocal then
 								surface.PlaySound("weapons/physcannon/superphys_small_zap" .. math.random(1,4) .. ".wav")
@@ -131,7 +131,7 @@ if CLIENT then
 			local size = self:GetMaxBound()
 			local scale = math.abs(size.x * size.y * size.z)
 			
-			if !self.PoisonEmitter then
+			if !IsValid(self.PoisonEmitter) then
 				self.PoisonEmitter = ParticleEmitter(self:GetPos())
 			end
 			if self.NextPoisonCloud < CurTime() then

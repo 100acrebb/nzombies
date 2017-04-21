@@ -111,7 +111,6 @@ function ENT:Use(activator, caller)
 			if #activator:GetPerks() < GetConVar("nz_difficulty_perks_max"):GetInt() then
 				-- If they have enough money
 				activator:Buy(price, self, function()
-					activator:TakePoints(price)
 					self:SetBeingUsed(true)
 					self:SetUser(activator)
 					
